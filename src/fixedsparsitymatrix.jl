@@ -113,14 +113,17 @@ end
 """
     pattern(A::FixedSparsityMatrix) -> AbstractMatrix{Bool}
 
-The pattern mask: `true` exactly at the positions allowed to be nonzero.
+The pattern mask: `true` exactly at the positions allowed to be nonzero. Returns
+the matrix's live internal mask — treat it as read-only (mutating it would break
+the fixed-pattern invariant).
 """
 pattern(A::FixedSparsityMatrix) = A.pattern
 
 """
     parent(A::FixedSparsityMatrix)
 
-The underlying data matrix (with forbidden entries held at zero).
+The underlying data matrix (with forbidden entries held at zero). Returns the
+live internal storage — treat it as read-only.
 """
 Base.parent(A::FixedSparsityMatrix) = A.data
 

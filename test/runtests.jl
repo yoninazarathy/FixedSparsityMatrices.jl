@@ -107,4 +107,38 @@ include("testutils.jl")
         @test A \ x == Matrix(A) \ x
     end
 
+    @testset "non-square matrices" begin
+        data = [1.0 2.0 0.0; 0.0 3.0 4.0]
+        pat = Bool[1 1 0; 0 1 1]
+        A = FixedSparsityMatrix(data, pat)
+        @test size(A) == (2, 3)
+        test_fixedsparsity(A, data, pat)
+    end
+
+    @testset "fill! and in-place broadcast respect the pattern" begin
+        A = FixedSparsityMatrix([1.0 2.0; 0.0 3.0], Bool[1 1; 0 1])
+
+        B = copy(A); fill!(B, 0.0)                 # zero fill always allowed
+        @test all(iszero, B)
+        @test pattern(B) == pattern(A)
+        @test_throws ArgumentError fill!(copy(A), 5.0)   # nonzero hits forbidden (2,1)
+
+        C = copy(A)
+        C .= [10.0 20.0; 0.0 30.0]                 # zero at forbidden (2,1): OK
+        @test Matrix(C) == [10.0 20.0; 0.0 30.0]
+        @test_throws ArgumentError (copy(A) .= [10.0 20.0; 7.0 30.0])  # nonzero at (2,1)
+        @test_throws ArgumentError (copy(A) .= 1.0)                    # scalar to all entries
+        D = copy(A); D .= 0.0
+        @test all(iszero, D)
+    end
+
+    @testset "random instance honoring a pattern (idiom)" begin
+        pat = Bool[1 1 0; 0 1 1; 1 0 1]
+        R = FixedSparsityMatrix(rand(3, 3), pat)
+        @test pattern(R) == pat
+        for I in CartesianIndices(R)
+            pat[I] || @test R[I] == 0.0
+        end
+    end
+
 end

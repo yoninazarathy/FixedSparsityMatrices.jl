@@ -14,8 +14,8 @@ export
 """
     AbstractFixedSparsityMatrix{T} <: AbstractMatrix{T}
 
-Base type for matrices with a *fixed sparsity pattern* — a pattern set of
-positions that are allowed to be nonzero, fixed for the lifetime of the matrix.
+Base type for matrices with a *fixed sparsity pattern* — a set of positions that
+are allowed to be nonzero, fixed for the lifetime of the matrix.
 Entries outside the pattern are held at exactly `zero(T)` and any attempt to set
 them to a nonzero value is an error.
 
