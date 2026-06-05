@@ -21,6 +21,17 @@ function FixedSparsityMatrix{T}(A::FixedSparsityMatrix) where {T}
     return _with(convert(AbstractMatrix{T}, A.data), A.pattern)
 end
 
+# Template instantiation: an all-zeros, `T`-valued matrix over a given sparsity
+# pattern (then fill the allowed entries with `setindex!`). The `{T}` is what
+# marks the boolean matrix as a *pattern* rather than data to infer nonzeros from.
+FixedSparsityMatrix{T}(pattern::AbstractMatrix{Bool}) where {T} =
+    FixedSparsityMatrix(zeros(T, size(pattern)), pattern)
+
+# Disambiguate the exotic Bool-valued FixedSparsityMatrix (which is both a
+# FixedSparsityMatrix and an AbstractMatrix{Bool}) in favour of element conversion.
+FixedSparsityMatrix{T}(A::FixedSparsityMatrix{Bool}) where {T} =
+    _with(convert(AbstractMatrix{T}, A.data), A.pattern)
+
 # ---- broadcasting ----
 # Broadcasting reads through the underlying dense data, so `A .+ 1`, `f.(A)`,
 # etc. produce ordinary arrays rather than (possibly pattern-violating) wrappers.

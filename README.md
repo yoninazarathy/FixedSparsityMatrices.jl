@@ -81,6 +81,23 @@ FixedSparsityMatrix(sparse([1,2], [1,2], [1.0, 2.0]))  # pattern = stored entrie
 Supported shape types: `Diagonal`, `Bidiagonal`, `Tridiagonal`, `SymTridiagonal`,
 `UpperTriangular`, `LowerTriangular`, and `SparseMatrixCSC`.
 
+### From a pattern, with no values yet (a "template")
+
+A *template* is simply a sparsity pattern — a boolean matrix. To turn one into an
+all-zeros matrix of a chosen element type (then fill the allowed entries), give
+the element type explicitly:
+
+```julia
+pat = Bool[1 1 0; 0 1 1; 1 0 1]
+A = FixedSparsityMatrix{Float64}(pat)   # all zeros, with this pattern
+A[1, 1] = 5.0                            # fill an allowed entry
+A[1, 3] = 2.0                            # ERROR: (1,3) is outside the pattern
+```
+
+The `{Float64}` is required: it marks the boolean matrix as a *pattern*. A bare
+`FixedSparsityMatrix(boolmatrix)` instead treats the argument as *data* and
+infers the pattern from its `true` entries (giving a `Bool`-valued matrix).
+
 ### A random instance with a given pattern
 
 There is no special `rand` method: because construction zeros the forbidden

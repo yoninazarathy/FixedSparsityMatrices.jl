@@ -141,4 +141,36 @@ include("testutils.jl")
         end
     end
 
+    @testset "template: zero-valued matrix from a pattern" begin
+        pat = Bool[1 1 0; 0 1 1; 1 0 1]
+        A = FixedSparsityMatrix{Float64}(pat)
+        @test eltype(A) == Float64
+        @test all(iszero, A)
+        @test pattern(A) == pat
+        @test pattern(A) isa BitMatrix
+        @test size(A) == (3, 3)
+        # fill allowed entries; forbidden ones stay forbidden
+        A[1, 1] = 5.0
+        @test A[1, 1] == 5.0
+        @test_throws ArgumentError (A[1, 3] = 2.0)
+        # element type is honoured
+        @test eltype(FixedSparsityMatrix{Int}(pat)) == Int
+        # contrast: a *bare* Bool matrix is treated as data (pattern inferred from
+        # its `true`s), giving a Bool-valued matrix — not a template.
+        @test eltype(FixedSparsityMatrix(Bool[1 0; 0 1])) == Bool
+    end
+
+    @testset "element types beyond Float64" begin
+        Ai = FixedSparsityMatrix([1 2; 0 3], Bool[1 1; 0 1])
+        @test eltype(Ai) == Int
+        @test Ai[2, 1] == 0
+        @test 2Ai isa FixedSparsityMatrix
+        @test Matrix(2Ai) == [2 4; 0 6]
+
+        Ac = FixedSparsityMatrix(ComplexF64[1+1im 2; 0 3], Bool[1 1; 0 1])
+        @test eltype(Ac) == ComplexF64
+        @test Matrix(adjoint(Ac)) == adjoint(Matrix(Ac))      # conjugate transpose
+        @test pattern(adjoint(Ac)) == permutedims(Bool[1 1; 0 1])
+    end
+
 end
