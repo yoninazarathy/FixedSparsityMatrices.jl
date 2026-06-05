@@ -20,10 +20,14 @@ and with `SparseArrays`.
   the pattern is fixed and enforced, so forbidden positions can never become
   nonzero. It also stores densely (intended for small/medium matrices), so the
   pattern — not storage efficiency — is the point.
-- **`Diagonal`, `Bidiagonal`, `UpperTriangular`, …** encode a fixed *shape* in
-  the *type*. `FixedSparsityMatrix` carries an **arbitrary** pattern as *data*,
-  so any zero structure can be expressed and enforced — and you can build one
-  *from* those shape types when they fit.
+- **`Diagonal`, `Bidiagonal`, `UpperTriangular`, …** each represent one
+  *specific* zero structure, and there is a separate Julia type for each one — so
+  they only cover those standard shapes. `FixedSparsityMatrix` instead holds the
+  pattern as an ordinary value (the `support` mask), so a single type can
+  represent *any* arrangement of fixed zeros, including irregular ones that have
+  no dedicated type. When your structure does happen to be one of the standard
+  shapes, you can construct a `FixedSparsityMatrix` straight from it — e.g.
+  `FixedSparsityMatrix(Diagonal([1.0, 2.0, 3.0]))`.
 
 ## Type
 
