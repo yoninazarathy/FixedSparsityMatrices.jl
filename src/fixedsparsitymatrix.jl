@@ -56,6 +56,13 @@ struct FixedSparsityMatrix{T, M <: AbstractMatrix{T}, P <: AbstractMatrix{Bool}}
         end
         return new{T, M, P}(d, p)
     end
+
+    # Trusted, allocation-free builder used internally by pattern-preserving
+    # operations. The caller guarantees that `data` is freshly owned and already
+    # zero outside `pattern`, and that `pattern` is an owned, read-only mask (which
+    # may therefore be *shared* between matrices). No copying, re-zeroing, or checks.
+    global _wrap(data::M, pattern::P) where {T, M <: AbstractMatrix{T}, P <: AbstractMatrix{Bool}} =
+        new{T, M, P}(data, pattern)
 end
 
 # Main outer constructor: store the pattern compactly as a `BitMatrix` by default.
@@ -63,8 +70,10 @@ function FixedSparsityMatrix(data::AbstractMatrix{T}, pattern::AbstractMatrix{Bo
     return FixedSparsityMatrix{T, typeof(data), BitMatrix}(data, pattern)
 end
 
-# Internal: rebuild faithfully, preserving whatever pattern backend `pattern` has.
-# Used by pattern-preserving operations so they don't silently re-pack the mask.
+# Internal: faithful (copying) rebuild, preserving whatever pattern backend
+# `pattern` has. Used where an input may be borrowed/aliased (e.g. element-type
+# conversion), so it goes through the checked, copying constructor. Operations
+# that produce freshly-owned data with a known pattern use `_wrap` instead.
 _with(data::AbstractMatrix{T}, pattern::AbstractMatrix{Bool}) where {T} =
     FixedSparsityMatrix{T, typeof(data), typeof(pattern)}(data, pattern)
 
@@ -160,5 +169,6 @@ end
 # positions, so `similar` deliberately degrades to a plain dense `Matrix`.
 Base.similar(::FixedSparsityMatrix, ::Type{Tv}, dims::Dims) where {Tv} = Matrix{Tv}(undef, dims)
 
-Base.copy(A::FixedSparsityMatrix) = _with(copy(A.data), copy(A.pattern))
-Base.zero(A::FixedSparsityMatrix) = _with(zero(A.data), copy(A.pattern))
+# Independent data, shared (read-only) pattern.
+Base.copy(A::FixedSparsityMatrix) = _wrap(copy(A.data), A.pattern)
+Base.zero(A::FixedSparsityMatrix) = _wrap(zero(A.data), A.pattern)

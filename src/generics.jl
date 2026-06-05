@@ -39,25 +39,27 @@ Base.broadcastable(A::FixedSparsityMatrix) = A.data
 
 # ---- transpose / adjoint (pattern-preserving) ----
 
-Base.transpose(A::FixedSparsityMatrix) = _with(permutedims(A.data), permutedims(A.pattern))
-Base.adjoint(A::FixedSparsityMatrix) = _with(permutedims(conj(A.data)), permutedims(A.pattern))
+# transpose/adjoint produce a fresh (permuted) pattern; scaling/sign keep and
+# share the same pattern object. All produce freshly-owned data, so use `_wrap`.
+Base.transpose(A::FixedSparsityMatrix) = _wrap(permutedims(A.data), permutedims(A.pattern))
+Base.adjoint(A::FixedSparsityMatrix) = _wrap(permutedims(conj(A.data)), permutedims(A.pattern))
 
-# ---- scaling and sign (pattern-preserving) ----
+# ---- scaling and sign (pattern-preserving; pattern shared) ----
 
-Base.:*(A::FixedSparsityMatrix, c::Number) = _with(A.data * c, A.pattern)
-Base.:*(c::Number, A::FixedSparsityMatrix) = _with(c * A.data, A.pattern)
-Base.:/(A::FixedSparsityMatrix, c::Number) = _with(A.data / c, A.pattern)
-Base.:-(A::FixedSparsityMatrix) = _with(-A.data, A.pattern)
+Base.:*(A::FixedSparsityMatrix, c::Number) = _wrap(A.data * c, A.pattern)
+Base.:*(c::Number, A::FixedSparsityMatrix) = _wrap(c * A.data, A.pattern)
+Base.:/(A::FixedSparsityMatrix, c::Number) = _wrap(A.data / c, A.pattern)
+Base.:-(A::FixedSparsityMatrix) = _wrap(-A.data, A.pattern)
 
 # ---- addition / subtraction ----
 # Between two fixed-sparsity matrices the result pattern is the union of patterns.
 function Base.:+(A::FixedSparsityMatrix, B::FixedSparsityMatrix)
     size(A) == size(B) || throw(DimensionMismatch("dimensions must match: $(size(A)) vs $(size(B))"))
-    return _with(A.data + B.data, A.pattern .| B.pattern)
+    return _wrap(A.data + B.data, A.pattern .| B.pattern)
 end
 function Base.:-(A::FixedSparsityMatrix, B::FixedSparsityMatrix)
     size(A) == size(B) || throw(DimensionMismatch("dimensions must match: $(size(A)) vs $(size(B))"))
-    return _with(A.data - B.data, A.pattern .| B.pattern)
+    return _wrap(A.data - B.data, A.pattern .| B.pattern)
 end
 # Against an unconstrained matrix the result is unconstrained → dense.
 Base.:+(A::FixedSparsityMatrix, B::AbstractMatrix) = A.data + B

@@ -173,4 +173,25 @@ include("testutils.jl")
         @test pattern(adjoint(Ac)) == permutedims(Bool[1 1; 0 1])
     end
 
+    @testset "pattern sharing optimization" begin
+        A = FixedSparsityMatrix([1.0 2.0; 0.0 3.0], Bool[1 1; 0 1])
+        # pattern-preserving ops share the SAME pattern object (no copy)
+        @test pattern(2A) === pattern(A)
+        @test pattern(A * 2) === pattern(A)
+        @test pattern(A / 2) === pattern(A)
+        @test pattern(-A) === pattern(A)
+        @test pattern(copy(A)) === pattern(A)
+        @test pattern(zero(A)) === pattern(A)
+        # data stays independent: mutating a derived matrix does not touch A
+        B = copy(A)
+        B[1, 1] = 99.0
+        @test A[1, 1] == 1.0
+        Z = zero(A)
+        Z[1, 1] = 7.0
+        @test A[1, 1] == 1.0
+        # transpose/+ compute a fresh (correct) pattern rather than sharing
+        @test pattern(transpose(A)) == permutedims(pattern(A))
+        @test pattern(A + A) == pattern(A)
+    end
+
 end
