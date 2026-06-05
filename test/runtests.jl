@@ -115,6 +115,22 @@ include("testutils.jl")
         test_fixedsparsity(A, data, pat)
     end
 
+    @testset "lower-rank slices degrade to a dense array of the right rank" begin
+        # A 1-D slice of a matrix must produce a Vector, not error: `similar`
+        # has to honor the requested `dims` rank, not hard-code `Matrix`.
+        A = FixedSparsityMatrix([1.0 2.0 0.0; 0.0 3.0 4.0; 5.0 0.0 6.0],
+                                Bool[1 1 0; 0 1 1; 1 0 1])
+        col = A[:, 2]
+        @test col isa Vector
+        @test col == Matrix(A)[:, 2]
+        row = A[1, :]
+        @test row isa Vector
+        @test row == Matrix(A)[1, :]
+        # explicit `similar` with mismatched-rank dims also obeys the request
+        @test similar(A, Float64, (3,)) isa Vector
+        @test similar(A, Float64, (2, 4)) isa Matrix
+    end
+
     @testset "fill! and in-place broadcast respect the pattern" begin
         A = FixedSparsityMatrix([1.0 2.0; 0.0 3.0], Bool[1 1; 0 1])
 
@@ -263,6 +279,13 @@ include("testutils.jl")
         M = [1.0 0.0 0.0; 0.0 1.0 0.0; 0.0 0.0 1.0]
         @test M * v == [1.0, 0.0, 3.0]
         @test (M * v) isa Vector
+    end
+
+    @testset "vector: similar honors a higher-rank dims request" begin
+        # `similar(v, T, (m, n))` must produce a matrix, not a vector.
+        v = FixedSparsityVector([1.0, 0.0, 3.0], Bool[1, 0, 1])
+        @test similar(v, Float64, (3,)) isa Vector
+        @test similar(v, Float64, (2, 2)) isa Matrix
     end
 
     @testset "vector: template from a pattern" begin

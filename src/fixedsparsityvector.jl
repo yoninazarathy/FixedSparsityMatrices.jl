@@ -144,8 +144,10 @@ Base.@propagate_inbounds function Base.setindex!(v::FixedSparsityVector, x, i::I
 end
 
 # Generic algorithms that `similar` then fill every entry would hit forbidden
-# positions, so `similar` deliberately degrades to a plain dense `Vector`.
-Base.similar(::FixedSparsityVector, ::Type{Tv}, dims::Dims) where {Tv} = Vector{Tv}(undef, dims)
+# positions, so `similar` deliberately degrades to a plain dense array. We honor
+# the requested `dims` rank (a 2-D `similar(v, T, (m, n))` must give a matrix), so
+# use `Array` rather than `Vector` here.
+Base.similar(::FixedSparsityVector, ::Type{Tv}, dims::Dims) where {Tv} = Array{Tv}(undef, dims)
 
 # Independent data, shared (read-only) pattern.
 Base.copy(v::FixedSparsityVector) = _wrapvec(copy(v.data), v.pattern)

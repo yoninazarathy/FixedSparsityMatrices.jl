@@ -166,8 +166,10 @@ Base.@propagate_inbounds function Base.setindex!(A::FixedSparsityMatrix, v, i::I
 end
 
 # Generic algorithms that `similar` then fill every entry would hit forbidden
-# positions, so `similar` deliberately degrades to a plain dense `Matrix`.
-Base.similar(::FixedSparsityMatrix, ::Type{Tv}, dims::Dims) where {Tv} = Matrix{Tv}(undef, dims)
+# positions, so `similar` deliberately degrades to a plain dense array. We honor
+# the requested `dims` rank (e.g. a 1-D slice `A[:, j]` asks for a vector), so use
+# `Array` rather than `Matrix` here.
+Base.similar(::FixedSparsityMatrix, ::Type{Tv}, dims::Dims) where {Tv} = Array{Tv}(undef, dims)
 
 # Independent data, shared (read-only) pattern.
 Base.copy(A::FixedSparsityMatrix) = _wrap(copy(A.data), A.pattern)
