@@ -1,13 +1,13 @@
 # Reusable driver that exercises the full AbstractMatrix interface and the
 # fixed-sparsity semantics of a `FixedSparsityMatrix`.
 #
-#   A       the matrix under test
-#   dense   the expected dense values (forbidden entries already zeroed)
-#   support the expected boolean support mask
+#   A     the matrix under test
+#   dense the expected dense values (forbidden entries already zeroed)
+#   pat   the expected boolean pattern mask
 
 using FixedSparsityMatrices, LinearAlgebra, SparseArrays, Test
 
-function test_fixedsparsity(A::FixedSparsityMatrix, dense::AbstractMatrix, support::AbstractMatrix{Bool})
+function test_fixedsparsity(A::FixedSparsityMatrix, dense::AbstractMatrix, pat::AbstractMatrix{Bool})
     @testset "interface: $(size(A,1))×$(size(A,2)) $(typeof(A).name.name)" begin
         # shape
         @test size(A) == size(dense)
@@ -15,11 +15,11 @@ function test_fixedsparsity(A::FixedSparsityMatrix, dense::AbstractMatrix, suppo
         @test eltype(A) == eltype(dense)
 
         # pattern + forbidden entries are exactly zero
-        @test pattern(A) == support
+        @test pattern(A) == pat
         @test parent(A) === A.data
         for I in CartesianIndices(A)
             @test A[I] == dense[I]
-            support[I] || @test A[I] == zero(eltype(A))
+            pat[I] || @test A[I] == zero(eltype(A))
         end
 
         # conversions
@@ -31,7 +31,7 @@ function test_fixedsparsity(A::FixedSparsityMatrix, dense::AbstractMatrix, suppo
         # scaling / sign preserve type, pattern and values
         for B in (2A, A * 2, A / 2, -A)
             @test B isa FixedSparsityMatrix
-            @test pattern(B) == support
+            @test pattern(B) == pat
         end
         @test Matrix(2A) == 2dense
         @test Matrix(A / 2) == dense / 2
@@ -40,7 +40,7 @@ function test_fixedsparsity(A::FixedSparsityMatrix, dense::AbstractMatrix, suppo
         # transpose preserves the (transposed) pattern and values
         At = transpose(A)
         @test At isa FixedSparsityMatrix
-        @test pattern(At) == permutedims(support)
+        @test pattern(At) == permutedims(pat)
         @test Matrix(At) == permutedims(dense)
 
         # similar degrades to a plain dense Matrix (so generic code can fill it)
@@ -56,12 +56,12 @@ function test_fixedsparsity(A::FixedSparsityMatrix, dense::AbstractMatrix, suppo
         # setindex! semantics (operate on a copy)
         C = copy(A)
         @test C isa FixedSparsityMatrix
-        idx = findfirst(support)
+        idx = findfirst(pat)
         if idx !== nothing
             C[idx] = 42
             @test C[idx] == 42
         end
-        zidx = findfirst(.!support)
+        zidx = findfirst(.!pat)
         if zidx !== nothing
             @test (C[zidx] = 0) == 0        # setting a forbidden entry to zero is a no-op
             @test C[zidx] == 0

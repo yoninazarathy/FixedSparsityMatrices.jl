@@ -18,7 +18,7 @@ LinearAlgebra.diag(A::FixedSparsityMatrix, k::Integer = 0) = diag(A.data, k)
 
 # Element-type conversion preserves the pattern.
 function FixedSparsityMatrix{T}(A::FixedSparsityMatrix) where {T}
-    return FixedSparsityMatrix(convert(AbstractMatrix{T}, A.data), A.support)
+    return FixedSparsityMatrix(convert(AbstractMatrix{T}, A.data), A.pattern)
 end
 
 # ---- broadcasting ----
@@ -28,25 +28,25 @@ Base.broadcastable(A::FixedSparsityMatrix) = A.data
 
 # ---- transpose / adjoint (pattern-preserving) ----
 
-Base.transpose(A::FixedSparsityMatrix) = FixedSparsityMatrix(permutedims(A.data), permutedims(A.support))
-Base.adjoint(A::FixedSparsityMatrix) = FixedSparsityMatrix(permutedims(conj(A.data)), permutedims(A.support))
+Base.transpose(A::FixedSparsityMatrix) = FixedSparsityMatrix(permutedims(A.data), permutedims(A.pattern))
+Base.adjoint(A::FixedSparsityMatrix) = FixedSparsityMatrix(permutedims(conj(A.data)), permutedims(A.pattern))
 
 # ---- scaling and sign (pattern-preserving) ----
 
-Base.:*(A::FixedSparsityMatrix, c::Number) = FixedSparsityMatrix(A.data * c, A.support)
-Base.:*(c::Number, A::FixedSparsityMatrix) = FixedSparsityMatrix(c * A.data, A.support)
-Base.:/(A::FixedSparsityMatrix, c::Number) = FixedSparsityMatrix(A.data / c, A.support)
-Base.:-(A::FixedSparsityMatrix) = FixedSparsityMatrix(-A.data, A.support)
+Base.:*(A::FixedSparsityMatrix, c::Number) = FixedSparsityMatrix(A.data * c, A.pattern)
+Base.:*(c::Number, A::FixedSparsityMatrix) = FixedSparsityMatrix(c * A.data, A.pattern)
+Base.:/(A::FixedSparsityMatrix, c::Number) = FixedSparsityMatrix(A.data / c, A.pattern)
+Base.:-(A::FixedSparsityMatrix) = FixedSparsityMatrix(-A.data, A.pattern)
 
 # ---- addition / subtraction ----
-# Between two fixed-sparsity matrices the result pattern is the union of supports.
+# Between two fixed-sparsity matrices the result pattern is the union of patterns.
 function Base.:+(A::FixedSparsityMatrix, B::FixedSparsityMatrix)
     size(A) == size(B) || throw(DimensionMismatch("dimensions must match: $(size(A)) vs $(size(B))"))
-    return FixedSparsityMatrix(A.data + B.data, A.support .| B.support)
+    return FixedSparsityMatrix(A.data + B.data, A.pattern .| B.pattern)
 end
 function Base.:-(A::FixedSparsityMatrix, B::FixedSparsityMatrix)
     size(A) == size(B) || throw(DimensionMismatch("dimensions must match: $(size(A)) vs $(size(B))"))
-    return FixedSparsityMatrix(A.data - B.data, A.support .| B.support)
+    return FixedSparsityMatrix(A.data - B.data, A.pattern .| B.pattern)
 end
 # Against an unconstrained matrix the result is unconstrained → dense.
 Base.:+(A::FixedSparsityMatrix, B::AbstractMatrix) = A.data + B

@@ -23,7 +23,7 @@ and with `SparseArrays`.
 - **`Diagonal`, `Bidiagonal`, `UpperTriangular`, …** each represent one
   *specific* zero structure, and there is a separate Julia type for each one — so
   they only cover those standard shapes. `FixedSparsityMatrix` instead holds the
-  pattern as an ordinary value (the `support` mask), so a single type can
+  pattern as an ordinary value (the `pattern` mask), so a single type can
   represent *any* arrangement of fixed zeros, including irregular ones that have
   no dedicated type. When your structure does happen to be one of the standard
   shapes, you can construct a `FixedSparsityMatrix` straight from it — e.g.
@@ -34,13 +34,13 @@ and with `SparseArrays`.
 ```julia
 abstract type AbstractFixedSparsityMatrix{T} <: AbstractMatrix{T} end
 
-struct FixedSparsityMatrix{T, M<:AbstractMatrix{T}, S<:AbstractMatrix{Bool}} <: AbstractFixedSparsityMatrix{T}
+struct FixedSparsityMatrix{T, M<:AbstractMatrix{T}, P<:AbstractMatrix{Bool}} <: AbstractFixedSparsityMatrix{T}
     data::M       # values (forbidden entries held at zero)
-    support::S    # boolean mask: true where entries may be nonzero
+    pattern::P    # boolean mask: true where entries may be nonzero
 end
 ```
 
-The pattern lives in the `support` *field*, not the type — so distinct patterns
+The pattern lives in the `pattern` *field*, not the type — so distinct patterns
 do not produce distinct types and there is no recompilation per pattern (the
 same design choice `SparseArrays` makes for its structure).
 
@@ -56,15 +56,17 @@ A[1, 3]            # 0.0
 A[1, 2] = 5.0      # allowed
 A[1, 3] = 7.0      # ERROR: entry (1,3) is fixed to zero
 
-pattern(A)         # the BitMatrix of allowed positions
+pattern(A)         # the boolean pattern (allowed positions)
 Matrix(A)          # dense copy
 2A                 # scaling preserves the pattern (returns a FixedSparsityMatrix)
 A * A              # products degrade to a plain dense Matrix
+A .+ 3             # broadcasting ignores the pattern → plain dense Array;
+                   #   the fixed-zero entries become 3 too (0 + 3)
 
 # Infer the pattern from current nonzeros, or take it from a structured type:
-FixedSparsityMatrix([1.0 0.0; 0.0 2.0])              # support = nonzeros
-FixedSparsityMatrix(Bidiagonal([1,2,3.], [4,5.], :U)) # support = the band
-FixedSparsityMatrix(Diagonal([1.0, 2.0, 3.0]))        # support = the diagonal
+FixedSparsityMatrix([1.0 0.0; 0.0 2.0])              # pattern = nonzeros
+FixedSparsityMatrix(Bidiagonal([1,2,3.], [4,5.], :U)) # pattern = the band
+FixedSparsityMatrix(Diagonal([1.0, 2.0, 3.0]))        # pattern = the diagonal
 ```
 
 ## Semantics at a glance
@@ -77,7 +79,11 @@ FixedSparsityMatrix(Diagonal([1.0, 2.0, 3.0]))        # support = the diagonal
   `adjoint`, and `+`/`-` between two `FixedSparsityMatrix`es — pattern is the
   union) return a `FixedSparsityMatrix`.
 - **Unconstrained** results (matrix products, solves, general broadcasting,
-  `similar`) degrade to ordinary dense arrays.
+  `similar`) degrade to ordinary dense arrays. In particular, broadcasting reads
+  through the underlying dense data, so `A .+ 3`, `f.(A)`, etc. do **not** respect
+  the pattern: they return a plain `Array` in which the fixed-zero entries are
+  transformed too (e.g. `A .+ 3` puts `3` at those positions). Use scalar `*`/`/`
+  for pattern-preserving scaling.
 
 ## Status
 

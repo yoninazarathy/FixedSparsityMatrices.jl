@@ -8,21 +8,21 @@ include("testutils.jl")
 @testset "FixedSparsityMatrices.jl" begin
 
     @testset "explicit mask (construction zeroes forbidden entries)" begin
-        # (1,3) is outside the support but nonzero in `data` — it must be zeroed.
+        # (1,3) is outside the pattern but nonzero in `data` — it must be zeroed.
         data = [1.0 2.0 9.0;
                 0.0 3.0 4.0;
                 5.0 0.0 6.0]
-        support = Bool[1 1 0; 0 1 1; 1 0 1]
-        A = FixedSparsityMatrix(data, support)
+        pat = Bool[1 1 0; 0 1 1; 1 0 1]
+        A = FixedSparsityMatrix(data, pat)
         dense = [1.0 2.0 0.0;
                  0.0 3.0 4.0;
                  5.0 0.0 6.0]
         @test Matrix(A) == dense          # the 9.0 was forced to 0
         @test data[1, 3] == 9.0           # original argument untouched (defensive copy)
-        test_fixedsparsity(A, dense, support)
+        test_fixedsparsity(A, dense, pat)
     end
 
-    @testset "infer support from nonzeros" begin
+    @testset "infer pattern from nonzeros" begin
         data = [1.0 0.0; 0.0 2.0]
         A = FixedSparsityMatrix(data)
         @test pattern(A) == Bool[1 0; 0 1]
@@ -45,7 +45,7 @@ include("testutils.jl")
         U = UpperTriangular([1.0 2.0 3.0; 0.0 4.0 5.0; 0.0 0.0 6.0])
         test_fixedsparsity(FixedSparsityMatrix(U), Matrix(U), Bool[1 1 1; 0 1 1; 0 0 1])
 
-        # A structural band entry that is numerically zero stays *in* the support.
+        # A structural band entry that is numerically zero stays *in* the pattern.
         BUz = Bidiagonal([1.0, 2.0, 3.0], [0.0, 5.0], :U)   # super-diagonal (1,2) is 0
         Afsz = FixedSparsityMatrix(BUz)
         @test pattern(Afsz)[1, 2] == true                   # still allowed to be nonzero
@@ -71,7 +71,7 @@ include("testutils.jl")
         @test Matrix(A32) == Float32[1 0; 0 2]
     end
 
-    @testset "addition unions the supports" begin
+    @testset "addition unions the patterns" begin
         A = FixedSparsityMatrix([1.0 2.0; 0.0 0.0], Bool[1 1; 0 0])
         B = FixedSparsityMatrix([0.0 0.0; 3.0 4.0], Bool[0 0; 1 1])
         C = A + B
