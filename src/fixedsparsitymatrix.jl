@@ -11,11 +11,16 @@ that are allowed to be nonzero. Entries where `pattern` is `false` are forced to
 (`setindex!` throws); reading them returns zero.
 
 The type is parameterized on the storage types of both fields,
-`FixedSparsityMatrix{T, M<:AbstractMatrix{T}, S<:AbstractMatrix{Bool}}`, so the
+`FixedSparsityMatrix{T, M<:AbstractMatrix{T}, P<:AbstractMatrix{Bool}}`, so the
 pattern is *data* (a field), not part of the type.
 
+By default the pattern is stored compactly as a `BitMatrix` (1 bit per entry).
+To keep a different boolean backend instead — e.g. a `Matrix{Bool}`, which uses
+a byte per entry but has slightly faster element access — call the parametric
+constructor directly: `FixedSparsityMatrix{T, M, Matrix{Bool}}(data, pattern)`.
+
 # Constructors
-- `FixedSparsityMatrix(data, pattern)` — explicit mask.
+- `FixedSparsityMatrix(data, pattern)` — explicit mask (stored as a `BitMatrix`).
 - `FixedSparsityMatrix(A::AbstractMatrix)` — infer the pattern from the current
   nonzeros of `A`.
 - `FixedSparsityMatrix(A::Diagonal | Bidiagonal | Tridiagonal | SymTridiagonal |
@@ -53,16 +58,21 @@ struct FixedSparsityMatrix{T, M <: AbstractMatrix{T}, P <: AbstractMatrix{Bool}}
     end
 end
 
-# Main outer constructor: capture the concrete field types.
+# Main outer constructor: store the pattern compactly as a `BitMatrix` by default.
 function FixedSparsityMatrix(data::AbstractMatrix{T}, pattern::AbstractMatrix{Bool}) where {T}
-    return FixedSparsityMatrix{T, typeof(data), typeof(pattern)}(data, pattern)
+    return FixedSparsityMatrix{T, typeof(data), BitMatrix}(data, pattern)
 end
+
+# Internal: rebuild faithfully, preserving whatever pattern backend `pattern` has.
+# Used by pattern-preserving operations so they don't silently re-pack the mask.
+_with(data::AbstractMatrix{T}, pattern::AbstractMatrix{Bool}) where {T} =
+    FixedSparsityMatrix{T, typeof(data), typeof(pattern)}(data, pattern)
 
 # Infer the pattern from the current nonzero entries of `A`.
 FixedSparsityMatrix(A::AbstractMatrix) = FixedSparsityMatrix(A, .!iszero.(A))
 
-# No-op / copy from another fixed-sparsity matrix.
-FixedSparsityMatrix(A::FixedSparsityMatrix) = FixedSparsityMatrix(copy(A.data), copy(A.pattern))
+# Copy from another fixed-sparsity matrix (preserves its pattern backend).
+FixedSparsityMatrix(A::FixedSparsityMatrix) = copy(A)
 
 # ---- Construction from LinearAlgebra shape families (structural pattern) ----
 
@@ -147,5 +157,5 @@ end
 # positions, so `similar` deliberately degrades to a plain dense `Matrix`.
 Base.similar(::FixedSparsityMatrix, ::Type{Tv}, dims::Dims) where {Tv} = Matrix{Tv}(undef, dims)
 
-Base.copy(A::FixedSparsityMatrix) = FixedSparsityMatrix(copy(A.data), copy(A.pattern))
-Base.zero(A::FixedSparsityMatrix) = FixedSparsityMatrix(zero(A.data), copy(A.pattern))
+Base.copy(A::FixedSparsityMatrix) = _with(copy(A.data), copy(A.pattern))
+Base.zero(A::FixedSparsityMatrix) = _with(zero(A.data), copy(A.pattern))

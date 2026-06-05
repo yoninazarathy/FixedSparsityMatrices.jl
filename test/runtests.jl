@@ -59,6 +59,22 @@ include("testutils.jl")
         test_fixedsparsity(A, Matrix(S), Bool[1 0 0; 0 0 1; 0 1 0])
     end
 
+    @testset "pattern is stored as a BitMatrix by default" begin
+        A = FixedSparsityMatrix([1.0 2.0; 0.0 3.0], Bool[1 1; 0 1])   # Matrix{Bool} input
+        @test pattern(A) isa BitMatrix
+        @test FixedSparsityMatrix([1.0 0.0; 0.0 2.0]) |> pattern isa BitMatrix   # inferred
+        @test FixedSparsityMatrix(Diagonal([1.0, 2.0])) |> pattern isa BitMatrix # structural
+        # pattern-preserving ops keep the BitMatrix backend
+        @test pattern(2A) isa BitMatrix
+        @test pattern(transpose(A)) isa BitMatrix
+        @test pattern(copy(A)) isa BitMatrix
+        # explicit opt-out via the parametric constructor keeps Matrix{Bool}
+        B = FixedSparsityMatrix{Float64, Matrix{Float64}, Matrix{Bool}}([1.0 2.0; 0.0 3.0], Bool[1 1; 0 1])
+        @test pattern(B) isa Matrix{Bool}
+        @test pattern(2B) isa Matrix{Bool}        # ops preserve the chosen backend
+        @test pattern(copy(B)) isa Matrix{Bool}
+    end
+
     @testset "dimension mismatch" begin
         @test_throws DimensionMismatch FixedSparsityMatrix([1.0 2.0], Bool[1 1; 0 0])
     end
