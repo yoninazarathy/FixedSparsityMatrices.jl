@@ -194,4 +194,140 @@ include("testutils.jl")
         @test pattern(A + A) == pattern(A)
     end
 
+    @testset "no method ambiguities" begin
+        @test isempty(detect_ambiguities(FixedSparsityMatrices))
+    end
+
+    # ------------------------------------------------------------------
+    # FixedSparsityVector
+    # ------------------------------------------------------------------
+
+    @testset "vector: explicit mask (construction zeroes forbidden entries)" begin
+        data = [1.0, 9.0, 3.0]            # entry 2 is outside the pattern but nonzero
+        pat = Bool[1, 0, 1]
+        v = FixedSparsityVector(data, pat)
+        dense = [1.0, 0.0, 3.0]
+        @test Vector(v) == dense          # the 9.0 was forced to 0
+        @test data[2] == 9.0              # original argument untouched (defensive copy)
+        test_fixedsparsity(v, dense, pat)
+    end
+
+    @testset "vector: infer pattern from nonzeros" begin
+        data = [1.0, 0.0, 2.0]
+        v = FixedSparsityVector(data)
+        @test pattern(v) == Bool[1, 0, 1]
+        test_fixedsparsity(v, data, Bool[1, 0, 1])
+    end
+
+    @testset "vector: pattern is a BitVector by default" begin
+        v = FixedSparsityVector([1.0, 0.0, 3.0], Bool[1, 0, 1])   # Vector{Bool} input
+        @test pattern(v) isa BitVector
+        @test FixedSparsityVector([1.0, 0.0]) |> pattern isa BitVector   # inferred
+        # pattern-preserving ops keep the BitVector backend
+        @test pattern(2v) isa BitVector
+        @test pattern(copy(v)) isa BitVector
+        # explicit opt-out via the parametric constructor keeps Vector{Bool}
+        w = FixedSparsityVector{Float64, Vector{Float64}, Vector{Bool}}([1.0, 0.0], Bool[1, 0])
+        @test pattern(w) isa Vector{Bool}
+        @test pattern(2w) isa Vector{Bool}
+        @test pattern(copy(w)) isa Vector{Bool}
+    end
+
+    @testset "vector: dimension mismatch" begin
+        @test_throws DimensionMismatch FixedSparsityVector([1.0, 2.0], Bool[1, 0, 1])
+    end
+
+    @testset "vector: element-type conversion preserves pattern" begin
+        v = FixedSparsityVector([1.0, 0.0, 2.0])
+        v32 = FixedSparsityVector{Float32}(v)
+        @test eltype(v32) == Float32
+        @test pattern(v32) == pattern(v)
+        @test Vector(v32) == Float32[1, 0, 2]
+    end
+
+    @testset "vector: addition unions the patterns" begin
+        u = FixedSparsityVector([1.0, 2.0, 0.0], Bool[1, 1, 0])
+        v = FixedSparsityVector([0.0, 0.0, 3.0], Bool[0, 0, 1])
+        w = u + v
+        @test w isa FixedSparsityVector
+        @test pattern(w) == Bool[1, 1, 1]
+        @test Vector(w) == [1.0, 2.0, 3.0]
+        # against a plain vector it degrades to dense
+        @test (u + [1.0, 1.0, 1.0]) isa Vector
+    end
+
+    @testset "vector: products / dot / matvec degrade to dense" begin
+        v = FixedSparsityVector([1.0, 0.0, 3.0], Bool[1, 0, 1])
+        @test dot(v, v) == 10.0
+        @test v' * v == 10.0
+        M = [1.0 0.0 0.0; 0.0 1.0 0.0; 0.0 0.0 1.0]
+        @test M * v == [1.0, 0.0, 3.0]
+        @test (M * v) isa Vector
+    end
+
+    @testset "vector: template from a pattern" begin
+        pat = Bool[1, 0, 1, 1]
+        v = FixedSparsityVector{Float64}(pat)
+        @test eltype(v) == Float64
+        @test all(iszero, v)
+        @test pattern(v) == pat
+        @test pattern(v) isa BitVector
+        @test length(v) == 4
+        v[1] = 5.0
+        @test v[1] == 5.0
+        @test_throws ArgumentError (v[2] = 2.0)
+        @test eltype(FixedSparsityVector{Int}(pat)) == Int
+        # a *bare* Bool vector is treated as data (pattern inferred), not a template
+        @test eltype(FixedSparsityVector(Bool[1, 0, 1])) == Bool
+    end
+
+    @testset "vector: pattern sharing optimization" begin
+        v = FixedSparsityVector([1.0, 0.0, 3.0], Bool[1, 0, 1])
+        @test pattern(2v) === pattern(v)
+        @test pattern(v * 2) === pattern(v)
+        @test pattern(v / 2) === pattern(v)
+        @test pattern(-v) === pattern(v)
+        @test pattern(copy(v)) === pattern(v)
+        @test pattern(zero(v)) === pattern(v)
+        # data stays independent
+        w = copy(v); w[1] = 99.0
+        @test v[1] == 1.0
+        z = zero(v); z[1] = 7.0
+        @test v[1] == 1.0
+    end
+
+    @testset "vector: in-place broadcast respects the pattern" begin
+        v = FixedSparsityVector([1.0, 0.0, 3.0], Bool[1, 0, 1])
+        c = copy(v)
+        c .= [10.0, 0.0, 30.0]                  # zero at forbidden index 2: OK
+        @test Vector(c) == [10.0, 0.0, 30.0]
+        @test_throws ArgumentError (copy(v) .= [10.0, 7.0, 30.0])   # nonzero at index 2
+        @test_throws ArgumentError (copy(v) .= 1.0)                 # scalar to all entries
+        d = copy(v); d .= 0.0
+        @test all(iszero, d)
+        fill!(copy(v), 0.0)                      # zero fill always allowed
+        @test_throws ArgumentError fill!(copy(v), 5.0)
+    end
+
+    @testset "vector: element types beyond Float64" begin
+        vi = FixedSparsityVector([1, 0, 3], Bool[1, 0, 1])
+        @test eltype(vi) == Int
+        @test vi[2] == 0
+        @test 2vi isa FixedSparsityVector
+        @test Vector(2vi) == [2, 0, 6]
+
+        vc = FixedSparsityVector(ComplexF64[1+1im, 0, 3], Bool[1, 0, 1])
+        @test eltype(vc) == ComplexF64
+        @test Vector(vc) == ComplexF64[1+1im, 0, 3]
+    end
+
+    @testset "shared abstract supertype" begin
+        A = FixedSparsityMatrix([1.0 0.0; 0.0 2.0])
+        v = FixedSparsityVector([1.0, 0.0])
+        @test A isa AbstractFixedSparsityArray
+        @test v isa AbstractFixedSparsityArray
+        @test A isa AbstractMatrix      # still a genuine AbstractMatrix
+        @test v isa AbstractVector      # still a genuine AbstractVector
+    end
+
 end

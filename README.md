@@ -2,15 +2,18 @@
 
 [![CI](https://github.com/yoninazarathy/FixedSparsityMatrices.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/yoninazarathy/FixedSparsityMatrices.jl/actions/workflows/CI.yml)
 
-A small Julia package providing `FixedSparsityMatrix` — a dense matrix paired
-with a **fixed sparsity pattern**: a set of positions allowed to be nonzero,
-fixed for the lifetime of the matrix. Entries outside the pattern are held at
-exactly zero and *cannot* be set to a nonzero value.
+A small Julia package providing `FixedSparsityMatrix` (and its vector analogue
+`FixedSparsityVector`) — a dense array paired with a **fixed sparsity pattern**:
+a set of positions allowed to be nonzero, fixed for the lifetime of the array.
+Entries outside the pattern are held at exactly zero and *cannot* be set to a
+nonzero value.
 
-It subtypes `AbstractMatrix`, so it works with the rest of the linear-algebra
-ecosystem, and it interoperates with the structured matrix types from
+`FixedSparsityMatrix` subtypes `AbstractMatrix` and `FixedSparsityVector`
+subtypes `AbstractVector`, so they work with the rest of the linear-algebra
+ecosystem, and the matrix interoperates with the structured matrix types from
 `LinearAlgebra` (`Diagonal`, `Bidiagonal`, `Tridiagonal`, `UpperTriangular`, …)
-and with `SparseArrays`.
+and with `SparseArrays`. Both share the abstract supertype
+`AbstractFixedSparsityArray{T,N}`.
 
 ## Why not `SparseArrays` or `Diagonal`/`Bidiagonal`/…?
 
@@ -42,13 +45,18 @@ Pkg.add(url = "https://github.com/yoninazarathy/FixedSparsityMatrices.jl")
 ## Type
 
 ```julia
-abstract type AbstractFixedSparsityMatrix{T} <: AbstractMatrix{T} end
+abstract type AbstractFixedSparsityArray{T, N}  <: AbstractArray{T, N} end
+abstract type AbstractFixedSparsityMatrix{T}    <: AbstractFixedSparsityArray{T, 2} end  # ⊆ AbstractMatrix
+abstract type AbstractFixedSparsityVector{T}    <: AbstractFixedSparsityArray{T, 1} end  # ⊆ AbstractVector
 
 struct FixedSparsityMatrix{T, M<:AbstractMatrix{T}, P<:AbstractMatrix{Bool}} <: AbstractFixedSparsityMatrix{T}
     data::M       # values (forbidden entries held at zero)
     pattern::P    # boolean mask: true where entries may be nonzero
 end
 ```
+
+(`FixedSparsityVector` is parameterized the same way over `AbstractVector`s — see
+[Vectors](#vectors-fixedsparsityvector) below.)
 
 The pattern lives in the `pattern` *field*, not the type — so distinct patterns
 do not produce distinct types and there is no recompilation per pattern (the
@@ -167,6 +175,38 @@ dense arrays:
   for pattern-preserving scaling.
 - **`pattern(A)` / `parent(A)`** return the live internal arrays; treat them as
   read-only — mutating them would break the fixed-pattern invariant.
+
+## Vectors: `FixedSparsityVector`
+
+`FixedSparsityVector` is the one-dimensional analogue, with the same semantics:
+a dense vector paired with a boolean pattern, forbidden entries forced to zero
+and locked there.
+
+```julia
+using FixedSparsityMatrices
+
+v = FixedSparsityVector([1.0, 0.0, 3.0], Bool[1, 0, 1])  # explicit mask
+FixedSparsityVector([1.0, 0.0, 2.0])                     # infer pattern from nonzeros
+FixedSparsityVector{Float64}(Bool[1, 0, 1, 1])           # template: all zeros over a pattern
+
+v[1] = 5.0     # OK, position 1 is in the pattern
+v[2] = 7.0     # ERROR: position 2 is fixed to zero
+```
+
+It carries the same parameterization,
+`FixedSparsityVector{T, V<:AbstractVector{T}, P<:AbstractVector{Bool}}`, defaults
+its pattern to a `BitVector`, and follows the same preserve-or-degrade rule:
+
+| Operation | Result |
+| --- | --- |
+| `c * v`, `v * c`, `v / c`, `-v` | `FixedSparsityVector` (same pattern) |
+| `u + v`, `u - v` (both `FixedSparsityVector`) | `FixedSparsityVector` (pattern = union) |
+| `copy(v)`, `zero(v)`, `FixedSparsityVector{T}(v)` | `FixedSparsityVector` |
+| `dot(u, v)`, `M * v`, `v'`, `v .+ 3`, `similar(v)` | dense `Number` / `Vector` / `Array` |
+
+Accessors mirror the matrix: `pattern(v)`, `parent(v)`, `Vector(v)`, `sparse(v)`.
+`FixedSparsityMatrix` and `FixedSparsityVector` are the two concrete subtypes of
+`AbstractFixedSparsityArray{T,N}`.
 
 ## Element types and storage requirements
 
