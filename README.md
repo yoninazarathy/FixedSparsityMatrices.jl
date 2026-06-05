@@ -174,9 +174,3 @@ dense arrays:
 numeric element type, not just `Float64`). The data backend `M` must be a
 *mutable* `AbstractMatrix` (e.g. `Matrix`, an `MMatrix`, a GPU array), since
 construction and `setindex!` write into it. The matrix need not be square.
-
-## Status
-
-Early days (v0.1). The core type, the `AbstractMatrix` interface,
-structured-type interop, and a thorough test suite are in place. Issues and PRs
-welcome.
