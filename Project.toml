@@ -1,7 +1,7 @@
 name = "FixedSparsityMatrices"
 uuid = "b5d13e52-a467-431a-a85a-928014457621"
 authors = ["Yoni Nazarathy <y.nazarathy@uq.edu.au> and contributors"]
-version = "0.1.0"
+version = "0.1.1"
 
 [deps]
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
